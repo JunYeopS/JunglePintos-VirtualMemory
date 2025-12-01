@@ -3,6 +3,30 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "hash.h"
+
+/* ------------------------------------------------------------------ */
+/* 					Hash Table Helper Functions                       */
+/* ------------------------------------------------------------------ */
+static uint64_t
+page_hash(const struct hash_elem *e, void *aux)
+{
+	/* get page*/
+	struct page *p = hash_entry(e, struct page, hash_elem);
+	
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+/* ------------------------------------------------------------------ */
+/* 					Hash Table Helper Functions                       */
+/* ------------------------------------------------------------------ */
+static bool
+page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux)
+{
+	struct page *p_a = hash_entry(a, struct page, hash_elem);
+	struct page *p_b = hash_entry(b, struct page, hash_elem);
+	
+	return true ? (p_a->va < p_b->va) : false;
+}
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -63,19 +87,30 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	struct page dummy_page; //dummy(stack memory)
+	page.va = pg_round_down(va); 
 
-	return page;
+	struct hash_elem *e = hash_find(spt ,&page->hash_elem); // Get the elem with the page in va you are looking for
+	if (!e){
+		return NULL;
+	}
+	return hash_entry(e, struct page, hash_elem);// Get the page
 }
 
 /* Insert PAGE into spt with validation. */
 bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED,
-		struct page *page UNUSED) {
+spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-
+	/*take hash_elem in struct page*/
+	struct hash_elem *e = &page->hash_elem;
+	/*use hash_insert_function*/
+	e = hash_insert(&spt,e); // If a page is inserted into spt, null is returned.
+	if (!e){ //succ
+		succ = true;
+	}
+	
+	/*if the insertion is successful, the return value is true.*/
 	return succ;
 }
 
@@ -174,6 +209,8 @@ vm_do_claim_page (struct page *page) {
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	/*use hash_init*/
+	hash_init(spt, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
