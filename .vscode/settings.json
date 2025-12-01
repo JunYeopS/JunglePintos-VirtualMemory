@@ -68,7 +68,10 @@
     "mmu.h": "c",
     "vaddr.h": "c",
     "off_t.h": "c",
-    "debug.h": "c"
+    "debug.h": "c",
+    "malloc.h": "c",
+    "vm.h": "c",
+    "inspect.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled",
 }

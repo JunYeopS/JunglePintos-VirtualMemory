@@ -593,7 +593,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			goto done;
 		file_seek (file, file_ofs);
 
-		if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+		if (file_read (file, &phdr, sizeof phdr) != sizeof phdr) /* edward: read program header from ELF file */
 			goto done;
 		file_ofs += sizeof phdr;
 		switch (phdr.p_type) {

@@ -228,8 +228,8 @@ If WRITABLE is true, the new page is read/write, otherwise it is read-only.
 Returns true if successful, false if memory allocation failed.
 🔥 edward
 pml4: address of destination page table (user)
-upage: virtual address for a destination page table (user)
-kpage: virtual address for a origin page table (kernel)
+upage: user virtual address (not mapped)
+kpage: kernel virtual address (mapped)
 rw: boolean value which tells if the page is writable or not
 */
 bool
