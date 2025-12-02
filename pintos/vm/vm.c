@@ -4,6 +4,11 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "kernel/hash.h"
+#include "threads/mmu.h"
+#include "threads/synch.h"
+
+static struct list frame_list;  /* list for managing frame */
+static struct lock frame_lock;  /* lock for frame list*/
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -17,6 +22,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_list);
+	lock_init(&frame_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -120,10 +127,22 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
-	/* TODO: Fill this function. */
-
+    struct frame *frame = malloc(sizeof(struct frame));			
 	ASSERT (frame != NULL);
+
+	void *kva = palloc_get_page(PAL_USER);
+	if (kva == NULL){
+		free(frame);
+		PANIC("TODO: swap_out");
+	}
+
+	frame->kva = kva;
+	frame->page = NULL;
+
+	lock_acquire(&frame_lock);
+	list_push_back(&frame_list, &frame->frame_elem);
+	lock_release(&frame_lock);
+
 	ASSERT (frame->page == NULL);
 	return frame;
 }
@@ -160,9 +179,15 @@ vm_dealloc_page (struct page *page) {
 
 /* Claim the page that allocate on VA. */
 bool
-vm_claim_page (void *va UNUSED) {
+vm_claim_page (void *va) 
+{
 	struct page *page = NULL;
-	/* TODO: Fill this function */
+	
+	page = spt_find_page(&thread_current()->spt, va);
+	
+	if (page == NULL) {
+		return false;
+	}
 
 	return vm_do_claim_page (page);
 }
@@ -176,7 +201,10 @@ vm_do_claim_page (struct page *page) {
 	frame->page = page;
 	page->frame = frame;
 
-	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	/* Insert page table entry to map page's VA to frame's PA. */
+	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)) {
+		return false;
+	}
 
 	return swap_in (page, frame->kva);
 }
