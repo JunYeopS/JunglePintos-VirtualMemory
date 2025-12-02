@@ -5,6 +5,10 @@
 #include "vm/inspect.h"
 #include "kernel/hash.h"
 #include "threads/mmu.h"
+#include "threads/synch.h"
+
+static struct list frame_list;  /* list for managing frame */
+static struct lock frame_lock;  /* lock for frame list*/
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -18,6 +22,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_list);
+	lock_init(&frame_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -117,11 +123,22 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = calloc(1, sizeof(struct frame));
+  struct frame *frame = malloc(sizeof(struct frame));			
 	ASSERT (frame != NULL);
-	frame->kva = palloc_get_page (PAL_USER);
-	ASSERT (frame->kva != NULL); /* currently not considering the case of space shortage */
+
+	void *kva = palloc_get_page(PAL_USER);
+	if (kva == NULL){
+		free(frame);
+		PANIC("TODO: swap_out");
+	}
+
+	frame->kva = kva;
 	frame->page = NULL;
+
+	lock_acquire(&frame_lock);
+	list_push_back(&frame_list, &frame->frame_elem);
+	lock_release(&frame_lock);
+
 	ASSERT (frame->page == NULL);
 	return frame;
 }
@@ -159,7 +176,11 @@ vm_dealloc_page (struct page *page) {
 bool
 vm_claim_page (void *va) {
 	struct page *page = spt_find_page(&thread_current()->spt, va);
-	if (!page) return false;
+	
+	if (page == NULL) {
+		return false;
+	}
+
 	return vm_do_claim_page (page);
 }
 
@@ -169,7 +190,8 @@ vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
 	frame->page = page;
 	page->frame = frame;
-	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->is_writable)) {
+  
+	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)) {
 		page->frame = NULL;
 		frame->page = NULL;
 		return false;
@@ -187,7 +209,7 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
 /* ------------------------------------------------------------------ */
 /* 					Hash Table Helper Functions                       */
 /* ------------------------------------------------------------------ */
-static hash_hash_func __hash(const struct hash_elem *e, void *aux) {
+static uint64_t __hash(const struct hash_elem *e, void *aux) {
 	const struct page *p = hash_entry (e, struct page, hash_elem);
 	return hash_bytes (&p->va, sizeof (p->va));
 }
@@ -196,7 +218,7 @@ static hash_hash_func __hash(const struct hash_elem *e, void *aux) {
 /* 					Hash Table Helper Functions                       */
 /* ------------------------------------------------------------------ */
 /* edward: compare the key */
-static hash_less_func __less(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+static bool __less(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
 	const struct page *page_a = hash_entry (a, struct page, hash_elem);
 	const struct page *page_b = hash_entry (b, struct page, hash_elem);
 	return page_a->va < page_b->va;

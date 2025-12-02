@@ -48,7 +48,7 @@ struct page {
 	
 	/* Your implementation */
 	struct hash_elem hash_elem;
-	bool is_writable;
+	bool writable;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -66,6 +66,7 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem frame_elem;
 };
 
 /* The function table for page operations.
@@ -112,7 +113,7 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
-static hash_hash_func __hash(const struct hash_elem *e, void *aux);
-static hash_less_func __less(const struct hash_elem *a, const struct hash_elem *b, void *aux);
+static uint64_t __hash(const struct hash_elem *e, void *aux);
+static bool __less(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 
 #endif  /* VM_VM_H */
