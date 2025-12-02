@@ -10,6 +10,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "vm/inspect.h"
+#include "vm/uninit.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -51,15 +52,22 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage,
 
   ASSERT(VM_TYPE(type) != VM_UNINIT);
 
-  struct supplemental_page_table *spt = &thread_current()->spt;
+  struct supplemental_page_table *spt = &thread_current()->spt; // find spt
 
   /* Check wheter the upage is already occupied or not. */
-  if (spt_find_page(spt, upage) == NULL) {
+  if (spt_find_page(spt, upage) == NULL) { // dont' exist physical and
     /* TODO: Create the page, fetch the initialier according to the VM type,
      * TODO: and then create "uninit" page struct by calling uninit_new. You
      * TODO: should modify the field after calling the uninit_new. */
 
+    /*Pseudo code*/
+    struct page *page = calloc(1, struct page);
+    // struct uninit_page uninit_page = page->uninit;
+    uninit_new(page, upage, vm_initializer *init,
+               enum vm_type type, void *aux,
+               bool (*initializer)(struct page *, enum vm_type, void *))
     /* TODO: Insert the page into the spt. */
+    
   }
 err:
   return false;
