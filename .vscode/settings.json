@@ -78,7 +78,8 @@
     "io.h": "c",
     "disk.h": "c",
     "inttypes.h": "c",
-    "stdint.h": "c"
+    "stdint.h": "c",
+    "bitmap.h": "c"
   },
   // "C_Cpp.errorSquiggles": "disabled",
 }

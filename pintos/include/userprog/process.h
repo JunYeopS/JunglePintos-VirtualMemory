@@ -7,10 +7,10 @@
 #include <list.h>
 
 struct lazy_load_aux {
-    struct file *file;
-    off_t ofs;
-    uint32_t read_bytes;
-    uint32_t zero_bytes;
+  struct file *file;
+  off_t ofs;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
 };
 
 struct sync_to_parent {
@@ -31,13 +31,6 @@ struct fork_struct {
   struct sync_to_parent *sync2p;     /* Shared wait state with parent. */
 };
 
-struct lazy_aux {
-  struct file *file;
-  off_t offset;
-  size_t r_bytes; /* read bytes */
-  size_t z_bytes; /* zero bytes */
-};
-
 tid_t process_create_initd (const char *file_name);
 tid_t process_fork (const char *name, struct intr_frame *if_);
 int process_exec (void *f_name);
@@ -46,12 +39,11 @@ void process_exit (void);
 void process_activate (struct thread *next);
 void init_fds (struct thread *target);
 
-
 struct pass_segment {
-	struct file *file; // 읽을 파일
-	off_t ofs; // 읽기 시작할 off set
-	uint32_t read_bytes;
-	uint32_t zero_bytes;
+  struct file *file; // 읽을 파일
+  off_t ofs; // 읽기 시작할 off set
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
 };
 
 #endif /* userprog/process.h */
