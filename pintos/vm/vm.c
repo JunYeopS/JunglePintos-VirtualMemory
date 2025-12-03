@@ -5,6 +5,7 @@
 #include "threads/mmu.h"
 #include "threads/synch.h"
 
+#include "threads/malloc.h"
 static struct list frame_list;  /* list for managing frame */
 static struct lock frame_lock;  /* lock for frame list*/
 
@@ -71,8 +72,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
         default:
             goto err;
     }
-
-    uninit_new(page, upage, init, type, aux, initializer);
+    
+    uninit_new(page, pg_round_down(upage), init, type, aux, initializer);
     
     page->writable = writable;
 

@@ -22,6 +22,8 @@
 #include "threads/malloc.h"
 #include "userprog/syscall.h"
 #include "intrinsic.h"
+#include "vm/vm.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -830,7 +832,8 @@ install_page (void *upage, void *kpage, bool writable) {
 	return (pml4_get_page (t->pml4, upage) == NULL
 			&& pml4_set_page (t->pml4, upage, kpage, writable));
 }
-// #else
+// #else/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
@@ -873,16 +876,18 @@ lazy_load_segment (struct page *page, void *aux) {
  * or disk read error occurs. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
 
+	enum vm_type vm_type = VM_UNINIT;
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
 		 * and zero the final PAGE_ZERO_BYTES bytes. */
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-		size_t page_zero_bytes = PGSIZE - page_read_bytes;
+		size_t page_zero_bytes = PGSIZE - page_read_bytes; // 0으로 채울 공간 있는지
 
 		struct lazy_load_aux *aux = malloc(sizeof(struct lazy_load_aux));
 		aux->file = file;
@@ -891,8 +896,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
 		aux->ofs = ofs;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux)){
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage, writable, lazy_load_segment, aux)) {
 			free(aux);
 			return false;
 		}

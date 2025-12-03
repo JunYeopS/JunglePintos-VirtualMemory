@@ -75,10 +75,10 @@
     "pte.h": "c",
     "hash.h": "c",
     "stdbool.h": "c",
+    "io.h": "c",
     "disk.h": "c",
     "inttypes.h": "c",
-    "bitmap.h": "c"
+    "stdint.h": "c"
   },
-  "C_Cpp.errorSquiggles": "disabled",
-  "C_Cpp.dimInactiveRegions": false,
+  // "C_Cpp.errorSquiggles": "disabled",
 }

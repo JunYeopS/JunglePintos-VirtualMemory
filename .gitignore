@@ -34,3 +34,6 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 docker/
+
+#.clangd
+.clangd

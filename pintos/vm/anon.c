@@ -5,6 +5,10 @@
 #include "lib/kernel/bitmap.h"
 #include "threads/synch.h"
 
+#include <string.h>
+#include "bitmap.h"
+#include "threads/vaddr.h"
+
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
 static struct bitmap *swap_bitmap;
@@ -12,6 +16,9 @@ static struct lock swap_lock;
 static bool anon_swap_in (struct page *page, void *kva);
 static bool anon_swap_out (struct page *page);
 static void anon_destroy (struct page *page);
+
+/*swap table*/
+static struct bitmap *swap_table;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
@@ -41,6 +48,7 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 	page->operations = &anon_ops;
 	struct anon_page *anon_page = &page->anon;
 	anon_page->slot_idx = BITMAP_ERROR; /* BITMAP_ERROR: both for unallocated and error */
+  
 	return true;
 }
 
