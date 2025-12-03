@@ -6,6 +6,13 @@
 #include "threads/synch.h"
 #include <list.h>
 
+struct lazy_load_aux {
+    struct file *file;
+    off_t ofs;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+};
+
 struct sync_to_parent {
   struct list_elem elem;       /* Link in parent's children list. */
   struct semaphore sema;       /* Up when child finishes exiting. */
@@ -22,6 +29,13 @@ struct fork_struct {
   struct semaphore semaphore;        /* Sync parent/child fork result. */
   bool success;                      /* Child setup succeeded flag. */
   struct sync_to_parent *sync2p;     /* Shared wait state with parent. */
+};
+
+struct lazy_aux {
+  struct file *file;
+  off_t offset;
+  size_t r_bytes; /* read bytes */
+  size_t z_bytes; /* zero bytes */
 };
 
 tid_t process_create_initd (const char *file_name);
