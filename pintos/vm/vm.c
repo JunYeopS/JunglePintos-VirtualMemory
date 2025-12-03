@@ -49,34 +49,44 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 
   struct supplemental_page_table *spt = &thread_current()->spt;
   bool (*initializer)(struct page *, enum vm_type, void *kva) = NULL;
-  struct page *n_page = NULL;
 
   if (spt_find_page(spt, upage) == NULL) {
-    n_page = malloc(sizeof(struct page));
-    if (!n_page) {
+    /* TODO: Create the page, fetch the initialier according to the VM type,
+     * TODO: and then create "uninit" page struct by calling uninit_new. You
+     * TODO: should modify the field after calling the uninit_new. */
+    struct page *page = malloc(sizeof(struct page));
+    if (!page){
       goto err;
     }
+
+    bool (*initializer)(struct page *, enum vm_type, void *);
 
     switch (VM_TYPE(type)) {
-      case VM_ANON:
-        initializer = anon_initializer;
-        break;
-      case VM_FILE:
-        initializer = file_backed_initializer;
-        break;
-      default:
-        goto err;
+        case VM_ANON:
+            initializer = anon_initializer;
+            break;
+        case VM_FILE:
+            initializer = file_backed_initializer;
+            break;
+        default:
+            goto err;
     }
-    uninit_new(n_page, pg_round_down(upage), init, type, aux, initializer);
-    n_page->writable = writable;
 
-    if (!spt_insert_page(spt, n_page)) {
+    uninit_new(page, upage, init, type, aux, initializer);
+    
+    page->writable = writable;
+
+    /* TODO: Insert the page into the spt. */
+    if (!spt_insert_page(spt, page)){
       goto err;
     }
-    return true;
   }
+
+  return true;
 err:
-  if (n_page) free(n_page);
+  if (page) {
+    free(page);
+  }
   return false;
 }
 

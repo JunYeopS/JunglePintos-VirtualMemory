@@ -830,35 +830,31 @@ install_page (void *upage, void *kpage, bool writable) {
 	return (pml4_get_page (t->pml4, upage) == NULL
 			&& pml4_set_page (t->pml4, upage, kpage, writable));
 }
-#else
+// #else
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
-	struct lazy_aux *lazy_aux = aux;
-	struct file *file = lazy_aux->file;
-	off_t offset = lazy_aux->offset;
-	size_t r_bytes = lazy_aux->r_bytes;
-	size_t z_bytes = lazy_aux->z_bytes;
-	bool success = true;
+	/* TODO: Load the segment from the file */
+	struct lazy_load_aux *load_aux = aux;
+	/* TODO: This called when the first page fault occurs on address VA. */
+	void *kva = page->frame->kva;
 
-	if (file && r_bytes > 0) {
-		file_seek (file, offset);
-		if (file_read (file, page->frame->kva, r_bytes) != (int) r_bytes) {
-			success = false;
-		}
-	}
+	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) 
+        != (int) load_aux ->read_bytes) {
+        
+        free (load_aux);
+        return false;
+    }
 
-	if (success) {
-		memset (page->frame->kva + r_bytes, 0, z_bytes);
-	}
+	/* TODO: VA is available when calling this function. */
+	memset (kva + load_aux ->read_bytes, 0, load_aux->zero_bytes);
+	
+	free (aux);
 
-	/* 🔥 Don't forget to close the file and free the aux 🔥 */
-	if (file) file_close (file);
-	free (lazy_aux);
-	return success;
+  return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -888,36 +884,23 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		struct lazy_load_aux *aux = malloc(sizeof(struct lazy_load_aux));
+		aux->file = file;
+		aux->read_bytes = page_read_bytes;
+		aux->zero_bytes = page_zero_bytes;
+		aux->ofs = ofs;
+
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		enum vm_type type;
-		struct lazy_aux *aux = malloc(sizeof(struct lazy_aux));
-		if (!aux) return false;
-
-		if (page_read_bytes > 0) {
-			aux->file = file_reopen(file);
-			type = VM_FILE;
-			if (!aux->file) {
-				free(aux);
-				return false;
-			}
-		} else {
-			type = VM_ANON;
-			aux->file = NULL;
-		}
-		aux->offset = ofs;
-		aux->r_bytes = page_read_bytes;
-		aux->z_bytes = page_zero_bytes;
-
-		if (!vm_alloc_page_with_initializer (type, upage, writable, lazy_load_segment, aux)) {
-			if (aux->file) file_close(aux->file);
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
+					writable, lazy_load_segment, aux)){
 			free(aux);
 			return false;
 		}
-
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+
 		ofs += page_read_bytes;
 	}
 	return true;
