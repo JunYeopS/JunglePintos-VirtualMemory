@@ -18,6 +18,7 @@
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "userprog/process.h"
+#include "vm/vm.h"
 #include "intrinsic.h"
 #include "vm/vm.h"
 
@@ -78,6 +79,7 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f) {
+	// printf("🔥 entered system call handler\n");
 	switch (f->R.rax)
 	{
 	case SYS_HALT:
@@ -211,10 +213,13 @@ exit_with_error (void) {
 static void
 validate_user_buffer (const void *buffer, size_t size) {
 	const uint8_t *ptr = buffer;
+	// printf("✅ entered validate user buffer\n");
 	for (size_t i = 0; i < size; i++) {
-		if (!is_user_vaddr (ptr + i) || spt_find_page(&thread_current()->spt, ptr +i) == NULL)
-			exit_with_error ();
+		if (!is_user_vaddr (ptr + i) || !spt_find_page(&thread_current()->spt, ptr + i)) {
+			exit_with_error();
+		}
 	}
+	// printf("❌ exits validate user buffer\n");
 }
 
 static void

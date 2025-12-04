@@ -845,12 +845,10 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	void *kva = page->frame->kva;
 
-	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) 
-        != (int) load_aux ->read_bytes) {
-        
-        free (load_aux);
-        return false;
-    }
+	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) != (int) load_aux ->read_bytes) {
+		free (load_aux);
+		return false;
+	}
 
 	memset (kva + load_aux ->read_bytes, 0, load_aux->zero_bytes);
 	
