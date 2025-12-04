@@ -50,12 +50,12 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 
   struct supplemental_page_table *spt = &thread_current()->spt;
   bool (*initializer)(struct page *, enum vm_type, void *kva) = NULL;
-
+  struct page *page;
   if (spt_find_page(spt, upage) == NULL) {
     /* TODO: Create the page, fetch the initialier according to the VM type,
      * TODO: and then create "uninit" page struct by calling uninit_new. You
      * TODO: should modify the field after calling the uninit_new. */
-    struct page *page = malloc(sizeof(struct page));
+    page = malloc(sizeof(struct page));
     if (!page) {
       goto err;
     }
@@ -177,6 +177,9 @@ bool
 vm_try_handle_fault (struct intr_frame *f, void *addr, bool user, bool write, bool not_present) {
   struct supplemental_page_table *spt = &thread_current ()->spt;
   struct page *page = spt_find_page(spt, pg_round_down(addr));
+  if (!page || !not_present || page->writable != write) { // spt에 없음, 예정에 없음, 읽기인데 쓰면 ㅈ됨
+    return false;
+  }
   /* TODO: Validate the fault */
   /* TODO: Your code goes here */
   return vm_do_claim_page (page);
