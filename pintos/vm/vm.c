@@ -4,7 +4,7 @@
 #include "kernel/hash.h"
 #include "threads/mmu.h"
 #include "threads/synch.h"
-
+#include "vm/inspect.h"
 #include "threads/malloc.h"
 static struct list frame_list;  /* list for managing frame */
 static struct lock frame_lock;  /* lock for frame list*/
@@ -49,19 +49,17 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
   ASSERT(VM_TYPE(type) != VM_UNINIT);
 
   struct supplemental_page_table *spt = &thread_current()->spt;
-  bool (*initializer)(struct page *, enum vm_type, void *kva) = NULL;
-
+  struct page *page;
   if (spt_find_page(spt, upage) == NULL) {
     /* TODO: Create the page, fetch the initialier according to the VM type,
      * TODO: and then create "uninit" page struct by calling uninit_new. You
      * TODO: should modify the field after calling the uninit_new. */
-    struct page *page = malloc(sizeof(struct page));
+    page = malloc(sizeof(struct page));
     if (!page) {
       goto err;
     }
 
     bool (*initializer)(struct page *, enum vm_type, void *);
-
     switch (VM_TYPE(type)) {
       case VM_ANON:
         initializer = anon_initializer;
@@ -175,10 +173,24 @@ static bool vm_handle_wp(struct page *page UNUSED) {}
 /* Return true on success */
 bool
 vm_try_handle_fault (struct intr_frame *f, void *addr, bool user, bool write, bool not_present) {
+  /* TODO: Validate the fault */
+  if (!not_present) return false;
+  if (!addr || !is_user_vaddr(addr) || pg_round_down(addr) < (void *) PGSIZE) return false;
+
   struct supplemental_page_table *spt = &thread_current ()->spt;
   struct page *page = spt_find_page(spt, pg_round_down(addr));
-  /* TODO: Validate the fault */
+  
   /* TODO: Your code goes here */
+  if (!page) {
+    void *rsp = user ? f->rsp : thread_current()->tf.rsp;
+    if (rsp - 8 <= addr && addr <= USER_STACK) {
+      bool success = vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, pg_round_down(addr), true, NULL, NULL);
+      if (success) page = spt_find_page(spt, pg_round_down(addr));
+    }
+  }
+  if (!page) return false;
+  if (write && !page->writable) return false;
+
   return vm_do_claim_page (page);
 }
 

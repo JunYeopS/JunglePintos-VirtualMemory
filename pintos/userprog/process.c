@@ -832,7 +832,7 @@ install_page (void *upage, void *kpage, bool writable) {
 	return (pml4_get_page (t->pml4, upage) == NULL
 			&& pml4_set_page (t->pml4, upage, kpage, writable));
 }
-// #else/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#else
 
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
@@ -845,12 +845,10 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	void *kva = page->frame->kva;
 
-	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) 
-        != (int) load_aux ->read_bytes) {
-        
-        free (load_aux);
-        return false;
-    }
+	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) != (int) load_aux ->read_bytes) {
+		free (load_aux);
+		return false;
+	}
 
 	/* TODO: VA is available when calling this function. */
 	memset (kva + load_aux ->read_bytes, 0, load_aux->zero_bytes);
@@ -920,6 +918,10 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+
+	vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, true, NULL, NULL);
+	success = vm_claim_page(stack_bottom);
+	if (success) if_->rsp = USER_STACK;
 
 	return success;
 }
