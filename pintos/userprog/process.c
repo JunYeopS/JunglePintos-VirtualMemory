@@ -845,14 +845,11 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	void *kva = page->frame->kva;
 
-	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) 
-        != (int) load_aux ->read_bytes) {
-        
-        free (load_aux);
-        return false;
-    }
+	if (file_read_at (load_aux ->file, kva, load_aux ->read_bytes, load_aux ->ofs) != (int) load_aux ->read_bytes) {
+		free (load_aux);
+		return false;
+	}
 
-	/* TODO: VA is available when calling this function. */
 	memset (kva + load_aux ->read_bytes, 0, load_aux->zero_bytes);
 	
 	free (aux);
@@ -913,18 +910,22 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack (struct intr_frame *if_) {
-	void *stack_bottom = pg_round_down(((uint8_t *) USER_STACK) - PGSIZE);
-
-	/* TODO: 페이지를 스택으로 표시해야 합니다. */
-	if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true)) { //get page
-		/* TODO: stack_bottom에 스택을 매핑하고 페이지를 즉시 요청합니다.*/
+	bool success = false;
+	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
+	/* TODO: Map the stack on stack_bottom and claim the page immediately.
+	 * TODO: If success, set the rsp accordingly.
+	 * TODO: You should mark the page is stack. */
+	/* TODO: Your code goes here */
+	if (vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, true, NULL, NULL)){
 		if (vm_claim_page(stack_bottom)) {
-			/* TODO: 성공하면 rsp를 적절하게 설정합니다. */
-			if_->rsp = USER_STACK;
-			return true;
-		}
-		/* vm_claim_page 실패 시 할당된 가상 페이지를 정리합니다. */
-		vm_dealloc_page(spt_find_page(&thread_current()->spt, stack_bottom));
+			success = true;
+		} else {
+      vm_dealloc_page(spt_find_page(&thread_current()->spt, stack_bottom));
+    }
+	}
+
+	if (success) {
+		if_->rsp = USER_STACK;
 	}
 	return false;
 }
