@@ -6,6 +6,9 @@
 #include "threads/synch.h"
 #include "vm/inspect.h"
 #include "threads/malloc.h"
+#include "userprog/process.h"
+#include "filesys/file.h"
+#include <string.h>
 static struct list frame_list;  /* list for managing frame */
 static struct lock frame_lock;  /* lock for frame list*/
 
@@ -41,6 +44,9 @@ enum vm_type page_get_type(struct page *page) {
 static struct frame *vm_get_victim(void);
 static bool vm_do_claim_page(struct page *page);
 static struct frame *vm_evict_frame(void);
+static void spt_destructor(struct hash_elem *e, void *aux);
+static bool copy_uninit_page(struct page *src_page);
+static bool copy_init_page(struct page *src_page);
 
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
@@ -148,7 +154,7 @@ vm_get_frame (void) {
   ASSERT (frame != NULL);
 
   void *kva = palloc_get_page(PAL_USER);
-  if (kva == NULL) {
+  if (!kva) {
     free(frame);
     PANIC("TODO: swap_out");
   }
@@ -259,10 +265,100 @@ static bool __less(const struct hash_elem *a, const struct hash_elem *b, void *a
 }
 
 /* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {}
+bool supplemental_page_table_copy(struct supplemental_page_table *dst, struct supplemental_page_table *src) {
+  ASSERT(dst && src);
+  ASSERT(dst == &thread_current()->spt);
+
+  struct hash_iterator iter;
+  hash_first(&iter, &src->h_table);
+  while (hash_next(&iter)) {
+    struct page *src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
+
+    if (src_page->operations->type == VM_UNINIT) {
+      if (!copy_uninit_page(src_page)) {
+        return false;
+      }
+      continue;
+    }
+
+    if (!copy_init_page(src_page)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /* Free the resource hold by the supplemental page table */
 void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED) {
   /* TODO: Destroy all the supplemental_page_table hold by thread and
    * TODO: writeback all the modified contents to the storage. */
+  hash_clear(&spt->h_table, spt_destructor);
+}
+
+static void spt_destructor(struct hash_elem *e, void *aux UNUSED) {
+  struct page *page = hash_entry(e, struct page, hash_elem);
+  vm_dealloc_page(page);
+}
+
+static bool copy_uninit_page(struct page *src_page) {
+  ASSERT(src_page->operations->type == VM_UNINIT);
+  
+  enum vm_type intended_type = page_get_type(src_page);
+  void *va = src_page->va;
+  bool writable = src_page->writable;
+
+  struct uninit_page *src_uninit = &src_page->uninit;
+  struct lazy_load_aux *aux_copy = NULL;
+
+  if (src_uninit->aux) {
+    aux_copy = malloc(sizeof(struct lazy_load_aux));
+    if (!aux_copy) {
+      return false;
+    }
+
+    memcpy(aux_copy, src_uninit->aux, sizeof(struct lazy_load_aux));
+    if (aux_copy->file) {
+      aux_copy->file = file_reopen(aux_copy->file);
+      if (!aux_copy->file) {
+        free(aux_copy);
+        return false;
+      }
+    }
+  }
+
+  if (!vm_alloc_page_with_initializer(intended_type, va, writable, src_uninit->init, aux_copy)) {
+    if (aux_copy) {
+      if (aux_copy->file) {
+        file_close(aux_copy->file);
+      }
+      free(aux_copy);
+    }
+    return false;
+  }
+
+  return true;
+}
+
+static bool copy_init_page(struct page *src_page) {
+  ASSERT(src_page->operations->type != VM_UNINIT);
+
+  enum vm_type intended_type = page_get_type(src_page);
+  void *va = src_page->va;
+  bool writable = src_page->writable;
+
+  if (!vm_alloc_page_with_initializer(intended_type, va, writable, NULL, NULL)) {
+    return false;
+  }
+  if (!vm_claim_page(va)) {
+    return false;
+  }
+
+  struct page *target_page = spt_find_page(&thread_current()->spt, va);
+  if (!target_page || !target_page->frame) {
+    return false;
+  }
+  memcpy(target_page->frame->kva, src_page->frame->kva, PGSIZE);
+
+  return true;
 }

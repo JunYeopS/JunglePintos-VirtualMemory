@@ -22,7 +22,6 @@
 #include "threads/malloc.h"
 #include "userprog/syscall.h"
 #include "intrinsic.h"
-#include "vm/vm.h"
 
 #ifdef VM
 #include "vm/vm.h"
