@@ -1,11 +1,13 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
+#include <string.h>
 #include "vm/vm.h"
 #include "kernel/hash.h"
 #include "threads/mmu.h"
 #include "threads/synch.h"
 #include "vm/inspect.h"
 #include "threads/malloc.h"
+#include "userprog/process.h"
 static struct list frame_list;  /* list for managing frame */
 static struct lock frame_lock;  /* lock for frame list*/
 
@@ -46,6 +48,7 @@ static struct frame *vm_evict_frame(void);
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
 bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
+  // printf("DEBUGDEBUGDEBUGDEBUGDEBUGDEBUG%d",VM_TYPE(type));
   ASSERT(VM_TYPE(type) != VM_UNINIT);
 
   struct supplemental_page_table *spt = &thread_current()->spt;
@@ -245,7 +248,7 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
   bool success = hash_init(&spt->h_table, __hash, __less, NULL);
   ASSERT(success); /* ??: not sure if this assertion is required */
 }
-
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 static uint64_t __hash(const struct hash_elem *e, void *aux) {
   const struct page *p = hash_entry(e, struct page, hash_elem);
   return hash_bytes(&p->va, sizeof(p->va));
@@ -258,11 +261,73 @@ static bool __less(const struct hash_elem *a, const struct hash_elem *b, void *a
   return (page_a->va < page_b->va);
 }
 
+static void __destroy(struct hash_elem *e, void *aux){
+  struct page *page = hash_entry(e, struct page, hash_elem);
+  destroy(page);
+  // free(page);
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {}
+bool supplemental_page_table_copy(struct supplemental_page_table *dst, struct supplemental_page_table *src) {
+  /*loop*/
+  struct hash_iterator i;
 
+  hash_first (&i, &src->h_table);
+
+  while (hash_next(&i)) {
+    struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem); //get page
+    if (!page) {
+      return false;
+    }
+    switch (VM_TYPE(page->operations->type)) {
+    case VM_UNINIT:
+      // aux malloc / cpy / free
+      struct lazy_load_aux *aux_cpy = malloc(sizeof(struct lazy_load_aux));
+      if (!aux_cpy) {
+        return false;
+      }
+      memcpy(aux_cpy, page->uninit.aux, sizeof(struct lazy_load_aux));
+      /* after alloc file_ reopen*/
+      if (aux_cpy->file) {
+        aux_cpy->file = file_reopen(aux_cpy->file);
+      }
+      struct uninit_page *u = &page->uninit;
+      if (!vm_alloc_page_with_initializer(u->type,
+                                        page->va, 
+                                        page->writable,
+                                        u->init,
+                                        aux_cpy)) {
+        if(aux_cpy->file){
+          file_close(aux_cpy->file);
+        }
+        free(aux_cpy);
+        return false;
+      }
+    break;
+    
+    default:
+      if (!vm_alloc_page(page->operations->type,
+                      page->va, 
+                      page->writable))
+        return false;
+      
+      if (!page->frame){
+        break;
+      }
+
+      if (!vm_claim_page(page->va)){
+        return false;
+      }
+      // kva cpy
+      struct page *dst_page = spt_find_page(dst, page->va);
+      memcpy(dst_page->frame->kva, page->frame->kva, PGSIZE);
+      
+      break;
+    }
+  }
+  return true;
+}
 /* Free the resource hold by the supplemental page table */
-void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED) {
-  /* TODO: Destroy all the supplemental_page_table hold by thread and
-   * TODO: writeback all the modified contents to the storage. */
+void supplemental_page_table_kill(struct supplemental_page_table *spt) {
+  hash_destroy (&spt->h_table, __destroy);
 }
