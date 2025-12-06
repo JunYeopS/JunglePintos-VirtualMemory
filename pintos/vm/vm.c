@@ -267,6 +267,53 @@ static void __destroy(struct hash_elem *e, void *aux){
   // free(page);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool __copy_uninit (struct page *page) {
+  // alloc and copy aux 
+  struct lazy_load_aux *aux_cpy = malloc(sizeof(struct lazy_load_aux));
+  if (!aux_cpy) {
+    return false;
+  }
+  memcpy(aux_cpy, page->uninit.aux, sizeof(struct lazy_load_aux));
+
+  /*file_ reopen*/
+  if (aux_cpy->file) {
+    aux_cpy->file = file_reopen(aux_cpy->file);
+  }
+
+  struct uninit_page *u = &page->uninit; // not union
+
+  /*alloc page*/
+  if (!vm_alloc_page_with_initializer(u->type, page->va, page->writable, u->init, aux_cpy)) {
+    if(aux_cpy->file){
+      file_close(aux_cpy->file);
+    }
+    free(aux_cpy);
+    return false;
+  }
+  return true;
+}
+
+bool __copy_claim (struct page *page, struct supplemental_page_table *dst) {
+  /*alloc page*/
+  if (!vm_alloc_page(page->operations->type, page->va, page->writable))
+    return false;
+  
+  if (!page->frame){
+    return;
+  }
+
+  /*frame link*/
+  if (!vm_claim_page(page->va)){
+    return false;
+  }
+  // kva cpy
+  struct page *dst_page = spt_find_page(dst, page->va);
+  memcpy(dst_page->frame->kva, page->frame->kva, PGSIZE);
+
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /* Copy supplemental page table from src to dst */
 bool supplemental_page_table_copy(struct supplemental_page_table *dst, struct supplemental_page_table *src) {
   /*loop*/
@@ -275,54 +322,25 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst, struct su
   hash_first (&i, &src->h_table);
 
   while (hash_next(&i)) {
-    struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem); //get page
+    /*get page*/
+    struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem);
+    bool success = false;
     if (!page) {
       return false;
     }
+    /*VM_TYPE to switch*/
     switch (VM_TYPE(page->operations->type)) {
+
     case VM_UNINIT:
-      // aux malloc / cpy / free
-      struct lazy_load_aux *aux_cpy = malloc(sizeof(struct lazy_load_aux));
-      if (!aux_cpy) {
-        return false;
-      }
-      memcpy(aux_cpy, page->uninit.aux, sizeof(struct lazy_load_aux));
-      /* after alloc file_ reopen*/
-      if (aux_cpy->file) {
-        aux_cpy->file = file_reopen(aux_cpy->file);
-      }
-      struct uninit_page *u = &page->uninit;
-      if (!vm_alloc_page_with_initializer(u->type,
-                                        page->va, 
-                                        page->writable,
-                                        u->init,
-                                        aux_cpy)) {
-        if(aux_cpy->file){
-          file_close(aux_cpy->file);
-        }
-        free(aux_cpy);
-        return false;
-      }
+      success = __copy_uninit(page);
     break;
     
     default:
-      if (!vm_alloc_page(page->operations->type,
-                      page->va, 
-                      page->writable))
-        return false;
-      
-      if (!page->frame){
-        break;
-      }
-
-      if (!vm_claim_page(page->va)){
-        return false;
-      }
-      // kva cpy
-      struct page *dst_page = spt_find_page(dst, page->va);
-      memcpy(dst_page->frame->kva, page->frame->kva, PGSIZE);
-      
+      success = __copy_claim(page, dst);
       break;
+    }
+    if (!success){
+      return false;
     }
   }
   return true;
