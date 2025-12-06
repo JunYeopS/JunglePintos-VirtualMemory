@@ -37,3 +37,7 @@ docker/
 
 #.clangd
 .clangd
+
+# TEAM 5: Virtual Memory
+.vscode/settings.json
+pintos/vm/.test_status
