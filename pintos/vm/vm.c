@@ -6,9 +6,9 @@
 #include "threads/synch.h"
 #include "vm/inspect.h"
 #include "threads/malloc.h"
-#include "userprog/process.h"
-#include "filesys/file.h"
-#include <string.h>
+#include "include/userprog/process.h"
+#include "lib/string.h"
+
 static struct list frame_list;  /* list for managing frame */
 static struct lock frame_lock;  /* lock for frame list*/
 
@@ -52,6 +52,7 @@ static bool copy_init_page(struct page *src_page);
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
 bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) {
+  // printf("DEBUGDEBUGDEBUGDEBUGDEBUGDEBUG%d",VM_TYPE(type));
   ASSERT(VM_TYPE(type) != VM_UNINIT);
 
   struct supplemental_page_table *spt = &thread_current()->spt;
@@ -252,6 +253,50 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
   ASSERT(success); /* ??: not sure if this assertion is required */
 }
 
+/* Copy supplemental page table from src to dst */
+bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct supplemental_page_table *src) {
+  ASSERT(dst && src);
+  ASSERT(dst == &thread_current()->spt);
+  
+  bool success = false;
+  struct hash_iterator iter;
+  
+  hash_first (&iter, &src->h_table);
+  while (elem = hash_next(&iter)) {
+    /*get page*/
+    struct page *src_page = hash_entry(elem, struct page, hash_elem);
+    if (!src_page) {
+      return false;
+    }
+    
+    /*VM_TYPE to switch*/
+    switch (VM_TYPE(src_page->operations->type)) {
+        case VM_UNINIT:
+          success = __copy_uninit(src_page);
+          break;
+
+        default:
+          success = __copy_init(src_page);
+          break;
+    }
+    if (!success){
+      return false;
+    }
+  }
+  return true;
+}
+
+
+/* Free the resource hold by the supplemental page table */
+void supplemental_page_table_kill(struct supplemental_page_table *spt) {
+
+  hash_destroy(&spt->h_table, __destructor);
+}
+
+
+
+/* Helper */
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 static uint64_t __hash(const struct hash_elem *e, void *aux) {
   const struct page *p = hash_entry(e, struct page, hash_elem);
   return hash_bytes(&p->va, sizeof(p->va));
@@ -264,44 +309,13 @@ static bool __less(const struct hash_elem *a, const struct hash_elem *b, void *a
   return (page_a->va < page_b->va);
 }
 
-/* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy(struct supplemental_page_table *dst, struct supplemental_page_table *src) {
-  ASSERT(dst && src);
-  ASSERT(dst == &thread_current()->spt);
+static void __destructor (struct hash_elem *e, void *aux) {
+    struct page *page = hash_entry(e, struct page, hash_elem);
 
-  struct hash_iterator iter;
-  hash_first(&iter, &src->h_table);
-  while (hash_next(&iter)) {
-    struct page *src_page = hash_entry(hash_cur(&iter), struct page, hash_elem);
-
-    if (src_page->operations->type == VM_UNINIT) {
-      if (!copy_uninit_page(src_page)) {
-        return false;
-      }
-      continue;
-    }
-
-    if (!copy_init_page(src_page)) {
-      return false;
-    }
-  }
-
-  return true;
+    vm_dealloc_page(page);
 }
 
-/* Free the resource hold by the supplemental page table */
-void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED) {
-  /* TODO: Destroy all the supplemental_page_table hold by thread and
-   * TODO: writeback all the modified contents to the storage. */
-  hash_clear(&spt->h_table, spt_destructor);
-}
-
-static void spt_destructor(struct hash_elem *e, void *aux UNUSED) {
-  struct page *page = hash_entry(e, struct page, hash_elem);
-  vm_dealloc_page(page);
-}
-
-static bool copy_uninit_page(struct page *src_page) {
+static bool __copy_uninit(struct page *src_page) {
   ASSERT(src_page->operations->type == VM_UNINIT);
   
   enum vm_type intended_type = page_get_type(src_page);
@@ -338,9 +352,9 @@ static bool copy_uninit_page(struct page *src_page) {
   }
 
   return true;
-}
 
-static bool copy_init_page(struct page *src_page) {
+
+static bool __copy_init(struct page *src_page) {
   ASSERT(src_page->operations->type != VM_UNINIT);
 
   enum vm_type intended_type = page_get_type(src_page);
@@ -350,6 +364,9 @@ static bool copy_init_page(struct page *src_page) {
   if (!vm_alloc_page_with_initializer(intended_type, va, writable, NULL, NULL)) {
     return false;
   }
+  
+  // TODO: further implement be needed (swap case)
+  
   if (!vm_claim_page(va)) {
     return false;
   }
@@ -362,3 +379,6 @@ static bool copy_init_page(struct page *src_page) {
 
   return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+

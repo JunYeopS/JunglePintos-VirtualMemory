@@ -358,6 +358,9 @@ process_exec (void *f_name) {
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 	process_cleanup (); /* We first kill the current context */
+#ifdef VM
+	supplemental_page_table_init(&thread_current()->spt);
+#endif
 	success = load (file_name, &_if); /* And then load the binary */
 	/* test 46 fails.. */
 	palloc_free_page (file_name);
@@ -540,7 +543,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	off_t file_ofs;
 	bool success = false;
 	int i;
-	
+
 	char *file_name_copy = NULL;
 	enum { MAX_ARGS = LOADER_ARGS_LEN / 2 + 1 };
 	char *argv[MAX_ARGS];

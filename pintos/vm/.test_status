@@ -4,7 +4,6 @@ sm-full PASS
 rox-simple PASS
 page-linear PASS
 mmap-zero PASS
-mmap-exit FAIL
 cow-simple FAIL
 fork-multiple PASS
 pt-write-code PASS
@@ -26,18 +25,19 @@ swap-anon FAIL
 bad-write PASS
 open-twice PASS
 page-shuffle PASS
-exec-arg PASS
 exec-missing PASS
+exec-arg PASS
 page-merge-mm FAIL
 read-bad-ptr PASS
 create-long PASS
-mmap-read FAIL
 mmap-remove FAIL
+mmap-read FAIL
 priority-preempt PASS
 fork-close PASS
 alarm-simultaneous PASS
 fork-boundary PASS
 priority-donate-chain PASS
+rox-multichild PASS
 create-bound PASS
 rox-multichild PASS
 lg-random PASS
@@ -47,6 +47,7 @@ priority-condvar PASS
 priority-donate-nest PASS
 rox-child PASS
 page-merge-par FAIL
+rox-child PASS
 mmap-write FAIL
 alarm-single PASS
 lazy-file FAIL
@@ -77,7 +78,6 @@ priority-fifo PASS
 wait-bad-pid PASS
 lg-create PASS
 pt-grow-bad PASS
-pt-grow-stk-sc FAIL
 mmap-twice FAIL
 exec-read PASS
 read-boundary PASS
@@ -101,7 +101,6 @@ mmap-unmap FAIL
 write-normal PASS
 mmap-off FAIL
 mmap-over-code FAIL
-bad-read PASS
 mmap-close FAIL
 fork-once PASS
 mmap-bad-fd3 PASS
